@@ -1,0 +1,109 @@
+name: Build and Package Fonts
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Font Packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install font build dependencies
+        run: pip install fontmake fonttools brotli
+
+      - name: Create output directories
+        run: mkdir -p dist/fonts dist/packages
+
+      - name: Build TTF and OTF from UFO sources
+        run: |
+          find src -name "*.ufo" -type d -not -path "*/OLD/*" | sort | while read ufo; do
+            echo "Building: $ufo"
+            fontmake -u "$ufo" -o ttf otf --output-dir dist/fonts/
+          done
+
+      - name: Generate WOFF from TTF
+        run: |
+          python - <<'EOF'
+          import glob
+          from fontTools.ttLib import TTFont
+          for ttf_path in sorted(glob.glob('dist/fonts/*.ttf')):
+              woff_path = ttf_path.replace('.ttf', '.woff')
+              font = TTFont(ttf_path)
+              font.flavor = 'woff'
+              font.save(woff_path)
+              print(f'Generated: {woff_path}')
+          EOF
+
+      - name: Generate WOFF2 from TTF
+        run: |
+          for ttf in dist/fonts/*.ttf; do
+            python -m fontTools.ttLib.woff2 compress "$ttf"
+            echo "Generated: ${ttf%.ttf}.woff2"
+          done
+
+      - name: List build artifacts
+        run: ls -lh dist/fonts/
+
+      - name: Determine package version
+        id: version
+        run: |
+          VERSION=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install nfpm
+        run: |
+          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt-get update
+          sudo apt-get install -y nfpm
+
+      - name: Build Debian package
+        run: nfpm package --packager deb --config nfpm.yaml --target dist/packages/
+
+      - name: Build RPM package
+        run: nfpm package --packager rpm --config nfpm.yaml --target dist/packages/
+
+      - name: Build Alpine (apk) package
+        run: nfpm package --packager apk --config nfpm.yaml --target dist/packages/
+
+      - name: Build IPK package
+        run: nfpm package --packager ipk --config nfpm.yaml --target dist/packages/
+
+      - name: Build Arch Linux package
+        run: nfpm package --packager archlinux --config nfpm.yaml --target dist/packages/
+
+      - name: List packages
+        run: ls -lh dist/packages/
+
+      - name: Upload font artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fonts-${{ steps.version.outputs.version }}
+          path: dist/fonts/
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ steps.version.outputs.version }}
+          path: dist/packages/

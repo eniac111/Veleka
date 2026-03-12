@@ -19,6 +19,8 @@ contents:
     dst: /usr/share/fonts/truetype/veleka/
   - src: dist/fonts/*.woff2
     dst: /usr/share/fonts/truetype/veleka/
+  - src: documentation/OFL.txt
+    dst: /usr/share/licenses/veleka-world-fonts/OFL.txt
 
 scripts:
   postinstall: scripts/postinstall.sh

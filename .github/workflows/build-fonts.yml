@@ -38,12 +38,9 @@ jobs:
       - name: Create output directories
         run: mkdir -p dist/fonts dist/packages
 
-      - name: Build TTF and OTF from UFO sources
+      - name: Build TTF and OTF instances from designspace
         run: |
-          find src -name "*.ufo" -type d -not -path "*/OLD/*" | sort | while read ufo; do
-            echo "Building: $ufo"
-            fontmake -u "$ufo" -o ttf otf --output-dir dist/fonts/
-          done
+          fontmake -m src/VelekaWorld.designspace -i -o ttf otf --output-dir dist/fonts/
 
       - name: Generate WOFF from TTF
         run: |

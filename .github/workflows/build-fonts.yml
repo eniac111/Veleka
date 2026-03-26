@@ -21,7 +21,7 @@ jobs:
     name: Build Font Packages
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -82,39 +82,47 @@ jobs:
           path: dist/fonts/
 
       - name: Install nfpm
-        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
           sudo apt-get update
           sudo apt-get install -y nfpm
 
       - name: Build Debian package
-        if: startsWith(github.ref, 'refs/tags/v')
         run: nfpm package --packager deb --config nfpm.yaml --target dist/packages/
 
       - name: Build RPM package
-        if: startsWith(github.ref, 'refs/tags/v')
         run: nfpm package --packager rpm --config nfpm.yaml --target dist/packages/
 
       - name: Build Alpine (apk) package
-        if: startsWith(github.ref, 'refs/tags/v')
         run: nfpm package --packager apk --config nfpm.yaml --target dist/packages/
 
       - name: Build IPK package
-        if: startsWith(github.ref, 'refs/tags/v')
         run: nfpm package --packager ipk --config nfpm.yaml --target dist/packages/
 
       - name: Build Arch Linux package
-        if: startsWith(github.ref, 'refs/tags/v')
         run: nfpm package --packager archlinux --config nfpm.yaml --target dist/packages/
 
       - name: List packages
-        if: startsWith(github.ref, 'refs/tags/v')
         run: ls -lh dist/packages/
 
-      - name: Upload packages
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
           name: packages-${{ steps.version.outputs.version }}
           path: dist/packages/
+
+      - name: Create font zip with license
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          mkdir -p dist/release
+          cp dist/fonts/*.ttf dist/fonts/*.otf dist/fonts/*.woff dist/fonts/*.woff2 dist/release/
+          cp documentation/OFL.txt dist/release/
+          cd dist/release && zip -r ../veleka-world-fonts-${{ steps.version.outputs.version }}.zip .
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/packages/*
+            dist/veleka-world-fonts-${{ steps.version.outputs.version }}.zip

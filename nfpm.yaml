@@ -1,0 +1,27 @@
+name: veleka-world-fonts
+arch: all
+version: "${VERSION}"
+maintainer: Blagovest Petrov <blagovest@petrovs.info>
+description: |
+  Veleka World font family, designed by Stefan Peev.
+  Free-to-use fonts with the modern Bulgarian letterform model
+  in the Cyrillic Unicode range. Based on Charis SIL, published
+  under the SIL Open Font License.
+homepage: https://localfonts.eu
+license: OFL-1.1
+
+contents:
+  - src: dist/fonts/*.ttf
+    dst: /usr/share/fonts/truetype/veleka/
+  - src: dist/fonts/*.otf
+    dst: /usr/share/fonts/truetype/veleka/
+  - src: dist/fonts/*.woff
+    dst: /usr/share/fonts/truetype/veleka/
+  - src: dist/fonts/*.woff2
+    dst: /usr/share/fonts/truetype/veleka/
+  - src: documentation/OFL.txt
+    dst: /usr/share/licenses/veleka-world-fonts/OFL.txt
+
+scripts:
+  postinstall: scripts/postinstall.sh
+  postremove: scripts/postremove.sh

@@ -33,37 +33,57 @@ jobs:
           python-version: '3.x'
 
       - name: Install font build dependencies
-        run: pip install fontmake fonttools brotli
+        run: pip install fontmake fonttools brotli ttfautohint-py
 
-      - name: Create output directories
-        run: mkdir -p dist/fonts
-
-      - name: Build TTF and OTF instances from designspace
+      # Release layout follows the other LOCAL FONTS projects (e.g. Terminalia):
+      # autohinted/instance_ttf, instance_otf, variable_ttf and web.
+      - name: Build autohinted TTF instances
         run: |
-          fontmake -m src/VelekaWorld.designspace -i -o ttf otf --output-dir dist/fonts/
+          fontmake -m src/VelekaWorld.designspace -i -a -o ttf \
+            --output-dir dist/release/autohinted/instance_ttf/
 
-      - name: Generate WOFF from TTF
+      - name: Build OTF instances
         run: |
+          fontmake -m src/VelekaWorld.designspace -i -o otf \
+            --output-dir dist/release/instance_otf/
+
+      - name: Build variable fonts
+        run: |
+          fontmake -m src/VelekaWorld.designspace -o variable \
+            --output-dir dist/release/variable_ttf/
+          fontmake -m src/VelekaWorld.designspace -o variable-cff2 \
+            --output-dir dist/release/variable_cff2/
+
+      - name: Build web fonts
+        run: |
+          mkdir -p dist/release/web
+          cp dist/release/autohinted/instance_ttf/*.ttf dist/release/web/
           python - <<'EOF'
           import glob
           from fontTools.ttLib import TTFont
-          for ttf_path in sorted(glob.glob('dist/fonts/*.ttf')):
+          for ttf_path in sorted(glob.glob('dist/release/web/*.ttf')):
               woff_path = ttf_path.replace('.ttf', '.woff')
               font = TTFont(ttf_path)
               font.flavor = 'woff'
               font.save(woff_path)
               print(f'Generated: {woff_path}')
           EOF
-
-      - name: Generate WOFF2 from TTF
-        run: |
-          for ttf in dist/fonts/*.ttf; do
+          for ttf in dist/release/web/*.ttf; do
             python -m fontTools.ttLib.woff2 compress "$ttf"
             echo "Generated: ${ttf%.ttf}.woff2"
           done
+          # One variable WOFF2 covers every weight in the range, at a fraction
+          # of the size of the four static ones.
+          python -m fontTools.ttLib.woff2 compress \
+            -o dist/release/web/VelekaWorld-VF.woff2 \
+            dist/release/variable_ttf/VelekaWorld-VF.ttf
+
+      # The packages built on OBS take the fonts and the license from this zip.
+      - name: Add license
+        run: cp documentation/OFL.txt dist/release/
 
       - name: List build artifacts
-        run: ls -lh dist/fonts/
+        run: find dist/release -type f | sort
 
       - name: Determine package version
         id: version
@@ -76,16 +96,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fonts-${{ steps.version.outputs.version }}
-          path: dist/fonts/
+          path: dist/release/
 
       # Distribution packages are built by the openSUSE Build Service from the
       # release zip below: https://build.opensuse.org/project/show/home:blago:localfonts
-      - name: Create font zip with license
+      - name: Create release zip
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          mkdir -p dist/release
-          cp dist/fonts/*.ttf dist/fonts/*.otf dist/fonts/*.woff dist/fonts/*.woff2 dist/release/
-          cp documentation/OFL.txt dist/release/
           cd dist/release && zip -r ../veleka-world-fonts-${{ steps.version.outputs.version }}.zip .
 
       - name: Upload to GitHub Release
